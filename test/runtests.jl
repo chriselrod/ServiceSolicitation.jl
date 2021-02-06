@@ -9,7 +9,7 @@ using Test
         dest = first(allargs)
         args = Base.tail(allargs)
         @inbounds @simd for i ∈ start:stop
-            dest[i] = f(getindex.(args, i)...)
+            dest[i] = f(Base.unsafe_getindex.(args, i)...)
         end
         nothing
     end
@@ -18,11 +18,13 @@ using Test
         dest = first(args)
         N = length(dest)
         mapfun! = (allargs, start, stop) -> rangemap!(f, allargs, start, stop)
-        batch(mapfun!, args, N, num_threads())
+        batch(mapfun!, (N, num_threads()), args...)
         dest
     end
 
-    x = rand(1024); y = rand(1024);
-    z = similar(x);
-    @test tmap!(+, z, x, y) ≈ x .+ y
+    x = rand(1024); y = rand(length(x)); z = similar(x);
+    foo(x,y) = exp(-0.5abs2(x-y))
+    @test tmap!(foo, z, x, y) ≈ foo.(x, y)
+
+
 end

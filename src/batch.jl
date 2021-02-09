@@ -74,9 +74,9 @@ end
         while true
             VectorizationBase.assume(tm ≠ zero(tm))
             tz = trailing_zeros(tm) % UInt32
+            stop = start + ifelse(i < Nr, Ndp, Nd)
             i += 0x00000001
             tz += 0x00000001
-            stop = start + ifelse(i ≤ Nr, Ndp, Nd)
             tid += tz
             tm >>>= tz
             launch_batched_thread!(cfunc, tid, argtup, start, stop)
@@ -90,7 +90,7 @@ end
     for k ∈ 1:K
         add_var!(q, argt, gcpr, args[k], :args, :gcp, k)
     end
-    push!(q.args, :(argtup = $argt), :(cfunc = batch_closure(f!, argtup, Val{false}())), gcpr, nothing)
+    push!(q.args, :(argtup = $argt), :(cfunc = batch_closure(f!, argtup, Val{false}())), gcpr)
     final = quote
         tm = mask(threads)
         tid = 0x00000000
@@ -151,26 +151,23 @@ end
             start = stop
             i == nthread && break
         end
+        f!(argtup, start, ulen)
     end
     gcpr = Expr(:gc_preserve, block, :cfunc)
     argt = Expr(:tuple)
     for k ∈ 1:K
         add_var!(q, argt, gcpr, args[k], :args, :gcp, k)
     end
-    push!(q.args, :(argtup = $argt), :(cfunc = batch_closure(f!, argtup, Val{true}())), gcpr, nothing)
+    push!(q.args, :(argtup = $argt), :(cfunc = batch_closure(f!, argtup, Val{true}())), gcpr)
     final = quote
-        f!(argtup, start, ulen)
-        tm = mask(threads)
         tid = 0x00000000
         while true
-            VectorizationBase.assume(tm ≠ zero(tm))
-            tz = trailing_zeros(tm) % UInt32
-            tz += 0x00000001
-            tm >>>= tz
+            VectorizationBase.assume(wait_mask ≠ zero(wait_mask))
+            tz = (trailing_zeros(wait_mask) % UInt32) + 0x00000001
+            wait_mask >>>= tz
             tid += tz
             ThreadingUtilities.__wait(tid)
-            reserve_threads!(tid, zero(worker_type()))
-            iszero(tm) && break
+            iszero(wait_mask) && break
         end
         nothing
     end

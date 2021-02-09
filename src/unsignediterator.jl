@@ -86,7 +86,10 @@ end
 end
 function Base.show(io::IO, u::UnsignedIteratorEarlyStop)
     l = length(u)
-    s = Vector{Int32}(undef, l) .= last.(u)
+    s = Vector{Int32}(undef, l)
+    if l > 0
+        s .= last.(u)
+    end
     print("Thread ($l) Iterator: U", s)
 end
 
